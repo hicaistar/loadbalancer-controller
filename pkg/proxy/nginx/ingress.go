@@ -96,6 +96,8 @@ func (f *nginx) generateDeployment(lb *lbapi.LoadBalancer) *appsv1.Deployment {
 		httpsPort = 443
 	}
 
+	livenessProbeCmd := fmt.Sprintf("read nginx_pid < /tmp/nginx.pid;test -f /proc/$nginx_pid/comm && curl -o /dev/null -s -w %s http://127.0.0.1:%v/healthz | grep -xq 200", "%{http_code}", httpPort)
+
 	ingressContainer := v1.Container{
 		Name:            "proxy",
 		Image:           f.image,
@@ -163,10 +165,12 @@ func (f *nginx) generateDeployment(lb *lbapi.LoadBalancer) *appsv1.Deployment {
 			// wait 120s before liveness probe is initiated
 			InitialDelaySeconds: 120,
 			Handler: v1.Handler{
-				HTTPGet: &v1.HTTPGetAction{
-					Path:   healthCheckPath,
-					Port:   intstr.FromInt(httpPort),
-					Scheme: v1.URISchemeHTTP,
+				Exec: &v1.ExecAction{
+					Command: []string {
+						"/bin/bash",
+						"-c",
+						livenessProbeCmd,
+					},
 				},
 			},
 		},
